@@ -81,7 +81,9 @@ function showRole(){
   const roleCard=document.getElementById('roleCard');
   roleCard.textContent=players[currentPlayer].role;
   roleScreen.style.display='block';
-  playTTS(`${ttsBase}Player${currentPlayer+1}_Wake.mp3`);
+  let playerNum = currentPlayer+1;
+  // Handle player numbers over 9 to match your GitHub file naming (Player 10_Wake.mp3 etc.)
+  playTTS(`${ttsBase}Player ${playerNum}_Wake.mp3`);
 }
 
 document.getElementById('okRoleBtn').addEventListener('click',()=>{
