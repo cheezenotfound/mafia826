@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mafia Game</title>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+<style>
+  body { font-family: 'Press Start 2P', cursive; margin: 0; padding: 0; text-align: center; transition: background 1s; background: #f2f2f2; color: #000; }
+  #gameContainer { padding: 20px; max-width: 800px; margin: auto; }
+  h1 { font-size: 3em; margin-bottom: 20px; }
+  #roleCard { font-size: 2.5em; margin: 50px 0; padding: 20px; border: 4px solid #333; border-radius: 15px; background: #fff; box-shadow: 0 0 20px rgba(0,0,0,0.3); }
+  button { padding: 15px 25px; margin: 10px; font-size: 1em; border-radius: 10px; cursor: pointer; border: none; background: #333; color: #fff; transition: 0.3s; }
+  button:hover { background: #555; }
+  #voteSummary table { margin: 0 auto; border-collapse: collapse; font-size: 1em; }
+  #voteSummary td, #voteSummary th { border: 2px solid #333; padding: 10px 20px; }
+  #voteSummary h2 { margin-bottom: 10px; }
+  #playersList button { margin: 5px; }
+</style>
+</head>
+<body>
+<div id="gameContainer">
+  <h1>Mafia Game</h1>
+  <div id="startScreen">
+    <input type="number" id="numPlayers" placeholder="Number of players (3-20)" min="3" max="20" />
+    <button id="startBtn">Start Game</button>
+  </div>
+  <div id="roleScreen" style="display:none;">
+    <div id="roleCard"></div>
+    <button id="okRoleBtn">OK</button>
+  </div>
+  <div id="nightScreen" style="display:none;"></div>
+  <div id="dayScreen" style="display:none;"></div>
+  <div id="voteScreen" style="display:none;"></div>
+  <div id="voteSummary" style="display:none;"></div>
+  <div id="gameEnd" style="display:none;"></div>
+</div>
+<script>
+const roles = ['Mafia','Rusher','Doctor','Scientist','Cupid','Psychic','Town'];
+let players = [];
+let currentPlayer = 0;
+let alivePlayers = [];
+let votes = {};
+let phase = '';
+
+const ttsBase = 'https://raw.githubusercontent.com/cheezenotfound/mafia-audio/main/';
+
+function playTTS(file){
+  let audio = new Audio(file);
+  audio.play();
+}
+
+function assignRoles(num){
+  let assignedRoles = [];
+  let neededRoles = roles.slice();
+  for(let i=0;i<num;i++){
+    if(neededRoles.length===0) neededRoles=['Town'];
+    let r = neededRoles.splice(Math.floor(Math.random()*neededRoles.length),1)[0];
+    assignedRoles.push(r);
+  }
+  return assignedRoles;
+}
+
+document.getElementById('startBtn').addEventListener('click',()=>{
+  const num=parseInt(document.getElementById('numPlayers').value);
+  if(num<3||num>20){ alert('Players must be between 3 and 20'); return; }
+  const assignedRoles=assignRoles(num);
+  players=[];
+  for(let i=0;i<num;i++){
+    players.push({id:i+1,role:assignedRoles[i],alive:true});
+  }
+  alivePlayers=[...players];
+  document.getElementById('startScreen').style.display='none';
+  currentPlayer=0;
+  showRole();
+});
+
+function showRole(){
+  if(currentPlayer>=players.length){ startNightPhase(); return; }
+  const roleScreen=document.getElementById('roleScreen');
+  const roleCard=document.getElementById('roleCard');
+  roleCard.textContent=players[currentPlayer].role;
+  roleScreen.style.display='block';
+  playTTS(`${ttsBase}Player${currentPlayer+1}_Wake.mp3`);
+}
+
+document.getElementById('okRoleBtn').addEventListener('click',()=>{
+  currentPlayer++;
+  showRole();
+});
+
+function startNightPhase(){
+  phase='night';
+  document.body.style.background='linear-gradient(to bottom, #000, #111)';
+  document.body.style.color='white';
+  playTTS(`${ttsBase}Night_Start.mp3`);
+  setTimeout(()=>{ runNightActions(0); },2000);
+}
+
+const nightRoles=['Mafia','Doctor','Scientist','Psychic','Cupid'];
+function runNightActions(index){
+  if(index>=nightRoles.length){ endNightPhase(); return; }
+  let role=nightRoles[index];
+  let hasRolePlayers=alivePlayers.filter(p=>p.role===role);
+  if(hasRolePlayers.length===0){ runNightActions(index+1); return; }
+  playTTS(`${ttsBase}${role}_Action.mp3`);
+  // TODO: Add interactive target selection UI here for each role
+  setTimeout(()=>{ runNightActions(index+1); },3000);
+}
+
+function endNightPhase(){
+  playTTS(`${ttsBase}Night_End.mp3`);
+  startDayPhase();
+}
+
+function startDayPhase(){
+  phase='day';
+  document.body.style.background='linear-gradient(to bottom, #87ceeb, #f0f8ff)';
+  document.body.style.color='black';
+  playTTS(`${ttsBase}Day_Start.mp3`);
+  setTimeout(()=>{ startVoting(); },2000);
+}
+
+function startVoting(){
+  phase='vote';
+  votes={};
+  const voteScreen=document.getElementById('voteScreen');
+  voteScreen.style.display='block';
+  voteScreen.innerHTML='<h2>Vote for a player to lynch:</h2>';
+  alivePlayers.forEach(p=>{
+    const btn=document.createElement('button');
+    btn.textContent=`Player ${p.id}`;
+    btn.addEventListener('click',()=>{ votes[p.id]=(votes[p.id]||0)+1; voteScreen.style.display='none'; endVoting(); });
+    voteScreen.appendChild(btn);
+  });
+  playTTS(`${ttsBase}Vote_Start.mp3`);
+}
+
+function endVoting(){
+  playTTS(`${ttsBase}Vote_End.mp3`);
+  displayVoteSummary();
+}
+
+function displayVoteSummary(){
+  const summary=document.getElementById('voteSummary');
+  summary.style.display='block';
+  let html='<h2>Vote Summary</h2><table><tr><th>Player</th><th>Votes</th></tr>';
+  alivePlayers.forEach(p=>{ html+=`<tr><td>Player ${p.id}</td><td>${votes[p.id]||0}</td></tr>`; });
+  html+='</table>'; summary.innerHTML=html;
+  playTTS(`${ttsBase}Vote_Summary.mp3`);
+  setTimeout(()=>{ summary.style.display='none'; startNightPhase(); },5000);
+}
+</script>
+</body>
+</html>
